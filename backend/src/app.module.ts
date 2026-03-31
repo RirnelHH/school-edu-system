@@ -15,6 +15,9 @@ import { RoomsModule } from './rooms/rooms.module';
 import { SemesterWeekConfigsModule } from './semester-week-configs/semester-week-configs.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
 import { SchedulingExportModule } from './scheduling-export/scheduling-export.module';
+import { TeachingHoursModule } from './teaching-hours/teaching-hours.module';
+import { LeavesModule } from './leaves/leaves.module';
+import { TeachingPlansModule } from './teaching-plans/teaching-plans.module';
 
 @Module({
   imports: [
@@ -37,6 +40,9 @@ import { SchedulingExportModule } from './scheduling-export/scheduling-export.mo
     SemesterWeekConfigsModule,
     SchedulingModule,
     SchedulingExportModule,
+    TeachingHoursModule,
+    LeavesModule,
+    TeachingPlansModule,
   ],
 })
 export class AppModule {}

@@ -55,6 +55,37 @@ export class SemesterWeekConfigsController {
     return { semesterId, isGraduating, weekCount };
   }
 
+  // 获取劳动周数
+  @Get('labor-week-count')
+  async getLaborWeekCount(@Query('semesterId') semesterId: string) {
+    const laborWeekCount = await this.service.getLaborWeekCount(semesterId);
+    return { semesterId, laborWeekCount };
+  }
+
+  // 获取有效教学周数（总周数 - 劳动周数）
+  @Get('effective-weeks')
+  async getEffectiveTeachingWeeks(
+    @Query('semesterId') semesterId: string,
+    @Query('isGraduating') isGraduating: string,
+  ) {
+    const effectiveWeeks = await this.service.getEffectiveTeachingWeeks(
+      semesterId,
+      isGraduating === 'true',
+    );
+    const weekCount = await this.service.getWeekCount(
+      semesterId,
+      isGraduating === 'true',
+    );
+    const laborWeekCount = await this.service.getLaborWeekCount(semesterId);
+    return {
+      semesterId,
+      isGraduating,
+      weekCount,
+      laborWeekCount,
+      effectiveWeeks,
+    };
+  }
+
   // 删除配置
   @Delete()
   delete(

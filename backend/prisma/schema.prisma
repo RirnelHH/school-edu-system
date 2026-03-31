@@ -264,9 +264,13 @@ model Teacher {
   user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   classes               Class[]                 @relation("ClassTeacher")
   courseHours           CourseHoursConfig[]
-  teachingPlans         TeachingPlan[]
+  teachingPlans         TeachingPlan[]          @relation("TeachingPlanPrimaryTeacher")
   TeacherTimePreference TeacherTimePreference[]
   TeachingHoursRecord   TeachingHoursRecord[]
+  ClassTeacherLeaves    LeaveRequest[]         @relation("ClassTeacherLeaves")
+  LeaveStepApprover     LeaveStep[]            @relation("LeaveStepApprover")
+  PlanTeachers          TeachingPlanTeacher[]
+  LessonPlanApprovals   LessonPlanTeacherApproval[]
 
   @@map("teachers")
 }
@@ -562,11 +566,18 @@ model LeaveRequest {
   reason      String
   status      LeaveStatus @default(PENDING)
   currentStep Int         @default(1)
+  
+  // 班主任审批
+  classTeacherId    String?   // 审批的班主任ID
+  reviewedAt        DateTime? // 审批时间
+  reviewedComment   String?   // 审批意见
+  
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  student Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  steps   LeaveStep[]
+  student      Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classTeacher Teacher?   @relation("ClassTeacherLeaves", fields: [classTeacherId], references: [id])
+  steps       LeaveStep[]
 
   @@map("leave_requests")
 }
@@ -595,6 +606,7 @@ model LeaveStep {
   actedAt        DateTime?
 
   leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+  approver     Teacher?     @relation("LeaveStepApprover", fields: [approverId], references: [id])
 
   @@map("leave_steps")
 }
@@ -817,33 +829,192 @@ enum WithdrawalStatus {
 // 授课计划与教案
 // ============================================
 
+// 授课计划（主计划，多教师协作）
 model TeachingPlan {
   id           String             @id @default(cuid())
-  teacherId    String
   courseId     String
   semesterId   String
   academicYear String
   status       TeachingPlanStatus @default(DRAFT)
+
+  // Excel文件
+  excelUrl     String?
+
+  // 提交时间
   submittedAt  DateTime?
-  reviewedAt   DateTime?
-  reviewedBy   String?
-  approvedAt   DateTime?
-  approvedBy   String?
+
+  // 教研组长审核
+  groupLeaderId    String?
+  groupLeaderAt    DateTime?
+  groupLeaderDecision String? // APPROVE/REJECT
+  groupLeaderComment String?
+
+  // 主任审批
+  directorId    String?
+  directorAt    DateTime?
+  directorDecision String?
+  directorComment String?
+
+  // 授课计划说明（Sheet1）
+  totalHours     Int?    // 总学时
+  completedHours Int?    // 已授学时
+  remainingHours Int?    // 尚余学时
+  teachingWeekCount Int? // 本学期教学周数
+  weeklyHours    Int?    // 本课程每周课时
+  theoryHours    Int?    // 理论课时
+  labHours      Int?    // 实训课时
+  practiceHours Int?    // 实践课时
+  examHours     Int?    // 考试课时
+
+  // 系统自动计算的课时（用于核对）
+  calculatedHours Int?
+
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
-  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  // 主责教师（保留旧字段用于兼容）
+  teacher Teacher? @relation("TeachingPlanPrimaryTeacher", fields: [teacherId], references: [id])
+  teacherId String?
 
-  @@unique([teacherId, courseId, semesterId])
+  // 关联的授课计划教师列表
+  planTeachers TeachingPlanTeacher[]
+
+  // 关联的教案
+  lessonPlans LessonPlan[]
+
+  // 授课计划内容条目
+  entries TeachingPlanEntry[]
+
+  @@unique([courseId, semesterId])
   @@map("teaching_plans")
 }
 
-enum TeachingPlanStatus {
-  DRAFT
-  SUBMITTED
-  REVIEWED
+// 授课计划内容条目（Sheet2-4，每行一个教学内容）
+model TeachingPlanEntry {
+  id            String   @id @default(cuid())
+  teachingPlanId String
+  weekNumber    Int      // 周次
+  sequence      Int      // 序号
+  chapterTitle  String?  // 章节/课题
+  content       String?  // 主要内容
+  theoryHours   Float?   // 理论
+  labHours      Float?   // 实训
+  practiceHours Float?   // 实践
+  testHours     Float?   // 测验
+  examHours     Float?   // 考试/考核
+  visitHours   Float?   // 参观
+  flexibleHours Float?  // 机动
+  subtotal     Float?   // 小计
+  homework     String?  // 课外作业
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teachingPlan TeachingPlan @relation(fields: [teachingPlanId], references: [id], onDelete: Cascade)
+
+  @@index([teachingPlanId, weekNumber])
+  @@map("teaching_plan_entries")
+}
+
+// 授课计划参与教师（多教师协作）
+model TeachingPlanTeacher {
+  id              String   @id @default(cuid())
+  teachingPlanId  String
+  teacherId       String
+  isGroupLeader   Boolean  @default(false) // 是否为教研组长
+  status          TeacherApprovalStatus @default(PENDING)
+
+  // 教师审核
+  approvedAt      DateTime?
+  decision        String? // APPROVE/REJECT
+  comment         String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  teachingPlan TeachingPlan @relation(fields: [teachingPlanId], references: [id], onDelete: Cascade)
+  teacher     Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teachingPlanId, teacherId])
+  @@map("teaching_plan_teachers")
+}
+
+enum TeacherApprovalStatus {
+  PENDING
   APPROVED
   REJECTED
+}
+
+enum TeachingPlanStatus {
+  DRAFT           // 草稿（师资安排中）
+  PENDING_TEACHER // 待多教师审核
+  PENDING_GROUP_LEADER // 待教研组长审核
+  PENDING_DIRECTOR // 待主任审批（教案才有）
+  APPROVED        // 已通过
+  REJECTED        // 已退回
+}
+
+// 教案（按周分课时）
+model LessonPlan {
+  id              String          @id @default(cuid())
+  teachingPlanId  String
+  weekNumber      Int             // 第几周
+  lessonTitle     String          // 课时标题
+  content         String?         // 课时内容
+  attachmentUrl   String?         // Word文件URL
+  status          LessonPlanStatus @default(DRAFT)
+
+  // 多教师审核
+  teacherApprovals LessonPlanTeacherApproval[]
+
+  // 教研组长审核
+  groupLeaderId       String?
+  groupLeaderAt       DateTime?
+  groupLeaderDecision String?
+  groupLeaderComment  String?
+
+  // 主任审批
+  directorId          String?
+  directorAt          DateTime?
+  directorDecision    String?
+  directorComment     String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teachingPlan TeachingPlan @relation(fields: [teachingPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([teachingPlanId, weekNumber])
+  @@map("lesson_plans")
+}
+
+// 教案的教师审核记录
+model LessonPlanTeacherApproval {
+  id            String   @id @default(cuid())
+  lessonPlanId  String
+  teacherId     String
+  status        TeacherApprovalStatus @default(PENDING)
+  approvedAt    DateTime?
+  decision      String? // APPROVE/REJECT
+  comment       String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  lessonPlan LessonPlan @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
+  teacher   Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonPlanId, teacherId])
+  @@map("lesson_plan_teacher_approvals")
+}
+
+enum LessonPlanStatus {
+  DRAFT              // 草稿
+  PENDING_TEACHER    // 待多教师审核
+  PENDING_GROUP_LEADER // 待教研组长审核
+  PENDING_DIRECTOR   // 待主任审批
+  APPROVED           // 已通过
+  REJECTED           // 已退回
 }
 
 // ============================================
@@ -897,6 +1068,7 @@ model SemesterWeekConfig {
   semesterId   String  @unique
   isGraduating Boolean @default(false) // 是否毕业班
   weekCount    Int     @default(18)    // 周数
+  laborWeekCount Int   @default(0)     // 劳动周数（这期间不上课）
 
   @@map("semester_week_configs")
 }

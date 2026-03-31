@@ -19,6 +19,12 @@ export class CreateOrUpdateSemesterWeekConfigDto {
   @Min(1)
   @Max(30)
   weekCount: number; // 周数
+
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  @IsOptional()
+  laborWeekCount?: number; // 劳动周数
 }
 
 // 批量更新
@@ -35,4 +41,10 @@ export class BatchUpdateSemesterWeekConfigDto {
   @Min(1)
   @Max(30)
   normalWeekCount: number; // 非毕业班周数
+
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  @IsOptional()
+  laborWeekCount?: number; // 劳动周数
 }

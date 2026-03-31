@@ -13,11 +13,13 @@ export class SemesterWeekConfigsService {
       update: {
         isGraduating: data.isGraduating,
         weekCount: data.weekCount,
+        laborWeekCount: data.laborWeekCount ?? 0,
       },
       create: {
         semesterId: data.semesterId,
         isGraduating: data.isGraduating,
         weekCount: data.weekCount,
+        laborWeekCount: data.laborWeekCount ?? 0,
       },
     });
   }
@@ -29,17 +31,15 @@ export class SemesterWeekConfigsService {
     // 更新毕业班配置
     const graduating = await this.prisma.semesterWeekConfig.upsert({
       where: { semesterId },
-      update: { isGraduating: true, weekCount: data.graduatingWeekCount },
-      create: { semesterId, isGraduating: true, weekCount: data.graduatingWeekCount },
+      update: { isGraduating: true, weekCount: data.graduatingWeekCount, laborWeekCount: data.laborWeekCount ?? 0 },
+      create: { semesterId, isGraduating: true, weekCount: data.graduatingWeekCount, laborWeekCount: data.laborWeekCount ?? 0 },
     });
-
-    // 更新非毕业班配置（用 semesterId_graduating = false 的方式，但 Prisma 不支持复合唯一键）
-    // 所以我们用另一个字段区分，或者直接查询毕业班/非毕业班
 
     return {
       semesterId,
       graduatingClass: graduating,
       normalClassWeekCount: data.normalWeekCount,
+      laborWeekCount: data.laborWeekCount ?? 0,
     };
   }
 
@@ -53,8 +53,8 @@ export class SemesterWeekConfigsService {
       // 返回默认值
       return {
         semesterId,
-        graduatingClass: { isGraduating: true, weekCount: 11 },
-        normalClass: { isGraduating: false, weekCount: 18 },
+        graduatingClass: { isGraduating: true, weekCount: 11, laborWeekCount: 0 },
+        normalClass: { isGraduating: false, weekCount: 18, laborWeekCount: 0 },
         hasCustomConfig: false,
       };
     }
@@ -64,8 +64,8 @@ export class SemesterWeekConfigsService {
 
     return {
       semesterId,
-      graduatingClass: graduatingConfig || { isGraduating: true, weekCount: 11 },
-      normalClass: normalConfig || { isGraduating: false, weekCount: 18 },
+      graduatingClass: graduatingConfig || { isGraduating: true, weekCount: 11, laborWeekCount: 0 },
+      normalClass: normalConfig || { isGraduating: false, weekCount: 18, laborWeekCount: 0 },
       hasCustomConfig: true,
       configs,
     };
@@ -78,6 +78,22 @@ export class SemesterWeekConfigsService {
     });
 
     return config?.weekCount || (isGraduating ? 11 : 18);
+  }
+
+  // 获取某学期的劳动周数
+  async getLaborWeekCount(semesterId: string): Promise<number> {
+    const config = await this.prisma.semesterWeekConfig.findFirst({
+      where: { semesterId },
+    });
+
+    return config?.laborWeekCount || 0;
+  }
+
+  // 计算有效教学周数（总周数 - 劳动周数）
+  async getEffectiveTeachingWeeks(semesterId: string, isGraduating: boolean): Promise<number> {
+    const weekCount = await this.getWeekCount(semesterId, isGraduating);
+    const laborWeekCount = await this.getLaborWeekCount(semesterId);
+    return Math.max(0, weekCount - laborWeekCount);
   }
 
   // 删除配置
