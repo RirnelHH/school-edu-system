@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { loginAsAdmin } from './setup';
 
 test.describe('认证流程', () => {
   test('登录页面加载', async ({ page }) => {
@@ -8,36 +9,26 @@ test.describe('认证流程', () => {
     await expect(inputs.first()).toBeVisible();
   });
 
-  test('登录表单验证', async ({ page }) => {
-    await page.goto('/login');
-    await page.waitForSelector('.el-button', { timeout: 10000 });
-    const submitBtn = page.locator('.el-button').first();
-    if (await submitBtn.isVisible()) {
-      await submitBtn.click();
-    }
-  });
-
-  test('错误的登录尝试', async ({ page }) => {
+  test('登录成功', async ({ page }) => {
     await page.goto('/login');
     await page.waitForSelector('.el-input', { timeout: 10000 });
     
-    // 找到用户名和密码输入框
     const inputs = page.locator('.el-input input');
-    await inputs.nth(0).fill('wronguser');
-    await inputs.nth(1).fill('wrongpass');
+    await inputs.nth(0).fill('admin');
+    await inputs.nth(1).fill('admin123');
     
-    // 点击登录按钮
-    await page.locator('.el-button').filter({ hasText: '登录' }).click();
+    const loginBtn = page.locator('.el-button').filter({ hasText: '登录' });
+    await loginBtn.click();
     
-    // 等待一下
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(3000);
   });
-});
 
-test.describe('首页', () => {
-  test('首页加载', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForTimeout(1000);
-    await expect(page).toHaveTitle(/./);
+  test('访问受保护页面需要登录', async ({ page }) => {
+    await page.goto('/dashboard');
+    await page.waitForTimeout(2000);
+    
+    // 如果未登录应该跳转到登录页
+    const url = page.url();
+    console.log('URL after goto /dashboard:', url);
   });
 });

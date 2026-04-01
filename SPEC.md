@@ -2470,3 +2470,64 @@ GET    /leaves/student/:studentId           # 学生的请假记录
 ---
 
 *本规格说明书使用 SDD 方法论制定，代码实现前需通过评审。*
+
+---
+
+## 8. 实现状态 (2026-04-01)
+
+### 前端页面 - 已完成
+
+| 页面 | 文件位置 | 状态 |
+|------|---------|------|
+| 授课计划列表 | `frontend/src/views/teaching-plans/TeachingPlanList.vue` | ✅ 完成 |
+| 教案列表 | `frontend/src/views/teaching-plans/LessonPlanList.vue` | ✅ 完成 |
+| 授课计划审批 | `frontend/src/views/teaching-plans/TeachingPlanApprove.vue` | ✅ 完成 |
+| 请假申请列表 | `frontend/src/views/leaves/LeaveList.vue` | ✅ 完成 |
+| 请假审批页面 | `frontend/src/views/leaves/LeaveApprove.vue` | ✅ 完成 |
+| 课时统计页面 | `frontend/src/views/teaching-hours/TeachingHoursList.vue` | ✅ 完成 |
+| 系数配置页面 | `frontend/src/views/teaching-hours/CoefficientConfig.vue` | ✅ 完成 |
+| 排课列表 | `frontend/src/views/scheduling/ScheduleList.vue` | ✅ 完成 |
+| 排课编辑 | `frontend/src/views/scheduling/ScheduleEdit.vue` | ✅ 完成 |
+| 冲突检测 | `frontend/src/views/scheduling/ConflictCheck.vue` | ✅ 完成 |
+| 成绩列表 | `frontend/src/views/grades/GradeList.vue` | ✅ 完成 |
+| 成绩录入 | `frontend/src/views/grades/GradeEntry.vue` | ✅ 完成 |
+| 成绩审批 | `frontend/src/views/grades/GradeApprove.vue` | ✅ 完成 |
+| 每日签到 | `frontend/src/views/checkin/DailyCheckin.vue` | ✅ 完成 |
+| 签到统计 | `frontend/src/views/checkin/CheckinStats.vue` | ✅ 完成 |
+| 培养计划列表 | `frontend/src/views/development-plans/PlanList.vue` | ✅ 完成 |
+| 培养计划审批 | `frontend/src/views/development-plans/PlanApprove.vue` | ✅ 完成 |
+| 教材列表 | `frontend/src/views/textbooks/TextbookList.vue` | ✅ 完成 |
+| 教材订购 | `frontend/src/views/textbooks/OrderList.vue` | ✅ 完成 |
+
+### 前端 API 模块 - 已完成
+
+| API 模块 | 文件位置 |
+|---------|---------|
+| 授课计划 API | `frontend/src/api/teaching-plans.ts` |
+| 请假 API | `frontend/src/api/leaves.ts` |
+| 课时统计 API | `frontend/src/api/teaching-hours.ts` |
+| 排课 API | `frontend/src/api/scheduling.ts` |
+| 成绩 API | `frontend/src/api/grades.ts` |
+| 签到 API | `frontend/src/api/checkin.ts` |
+| 培养计划 API | `frontend/src/api/development-plans.ts` |
+| 教材 API | `frontend/src/api/textbooks.ts` |
+
+### 前端路由 - 已完成
+
+所有新页面路由已添加到 `frontend/src/router/index.ts`，并更新了 Layout.vue 侧边栏导航。
+
+### 前端测试 - 已完成
+
+**E2E 测试** (`frontend/e2e/`):
+- `teaching-plans.spec.ts` - 授课计划管理 E2E
+- `leaves.spec.ts` - 请假管理 E2E
+- `teaching-hours.spec.ts` - 课时统计 E2E
+- `scheduling.spec.ts` - 排课管理 E2E
+- `grades.spec.ts` - 成绩管理 E2E
+- `checkin.spec.ts` - 签到管理 E2E
+- `development-plans.spec.ts` - 培养计划 E2E
+- `textbooks.spec.ts` - 教材管理 E2E
+
+**单元测试** (`frontend/src/`):
+- `api/teaching-plans.spec.ts` - 授课计划 API 单元测试
+- `api/leaves.spec.ts` - 请假 API 单元测试

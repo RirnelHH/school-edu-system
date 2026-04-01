@@ -33,6 +33,83 @@
           <el-menu-item index="/classes">班级管理</el-menu-item>
           <el-menu-item index="/students">学生管理</el-menu-item>
         </el-sub-menu>
+
+        <!-- 授课计划 -->
+        <el-sub-menu index="teaching-plans">
+          <template #title>
+            <el-icon><Document /></el-icon>
+            <span>授课计划</span>
+          </template>
+          <el-menu-item index="/teaching-plans">授课计划列表</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 请假 -->
+        <el-sub-menu index="leaves">
+          <template #title>
+            <el-icon><Calendar /></el-icon>
+            <span>请假管理</span>
+          </template>
+          <el-menu-item index="/leaves">请假申请</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 课时统计 -->
+        <el-sub-menu index="teaching-hours">
+          <template #title>
+            <el-icon><Timer /></el-icon>
+            <span>课时管理</span>
+          </template>
+          <el-menu-item index="/teaching-hours">课时统计</el-menu-item>
+          <el-menu-item index="/teaching-hours/coefficients">系数配置</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 排课管理 -->
+        <el-sub-menu index="scheduling">
+          <template #title>
+            <el-icon><Grid /></el-icon>
+            <span>排课管理</span>
+          </template>
+          <el-menu-item index="/scheduling">排课列表</el-menu-item>
+          <el-menu-item index="/scheduling/conflicts">冲突检测</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 成绩管理 -->
+        <el-sub-menu index="grades">
+          <template #title>
+            <el-icon><Histogram /></el-icon>
+            <span>成绩管理</span>
+          </template>
+          <el-menu-item index="/grades">成绩列表</el-menu-item>
+          <el-menu-item index="/grades/entry">成绩录入</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 签到管理 -->
+        <el-sub-menu index="checkin">
+          <template #title>
+            <el-icon><Clock /></el-icon>
+            <span>签到管理</span>
+          </template>
+          <el-menu-item index="/checkin">每日签到</el-menu-item>
+          <el-menu-item index="/checkin/stats">签到统计</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 培养计划 -->
+        <el-sub-menu index="development-plans">
+          <template #title>
+            <el-icon><TrendCharts /></el-icon>
+            <span>培养计划</span>
+          </template>
+          <el-menu-item index="/development-plans">培养计划列表</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 教材管理 -->
+        <el-sub-menu index="textbooks">
+          <template #title>
+            <el-icon><Books /></el-icon>
+            <span>教材管理</span>
+          </template>
+          <el-menu-item index="/textbooks">教材列表</el-menu-item>
+          <el-menu-item index="/textbooks/orders">教材订购</el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 
