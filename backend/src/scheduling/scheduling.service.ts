@@ -242,12 +242,23 @@ export class SchedulingService {
     const classIds = [...new Set(existingEntries.map(e => e.classId))];
     const roomIds = [...new Set(existingEntries.filter(e => e.roomId).map(e => e.roomId!))];
 
-    const [courses, teachers, classes, rooms] = await Promise.all([
-      courseIds.length ? this.prisma.course.findMany({ where: { id: { in: courseIds } } }) : [],
-      teacherIds.length ? this.prisma.teacher.findMany({ where: { id: { in: teacherIds } }, include: { user: true } }) : [],
-      classIds.length ? this.prisma.class.findMany({ where: { id: { in: classIds } } }) : [],
-      roomIds.length ? this.prisma.room.findMany({ where: { id: { in: roomIds } } }) : [],
-    ]);
+    let courses: any[] = [];
+    let teachers: any[] = [];
+    let classes: any[] = [];
+    let rooms: any[] = [];
+
+    if (courseIds.length > 0) {
+      courses = await this.prisma.course.findMany({ where: { id: { in: courseIds } } }) || [];
+    }
+    if (teacherIds.length > 0) {
+      teachers = await this.prisma.teacher.findMany({ where: { id: { in: teacherIds } }, include: { user: true } }) || [];
+    }
+    if (classIds.length > 0) {
+      classes = await this.prisma.class.findMany({ where: { id: { in: classIds } } }) || [];
+    }
+    if (roomIds.length > 0) {
+      rooms = await this.prisma.room.findMany({ where: { id: { in: roomIds } } }) || [];
+    }
 
     const courseMap = new Map(courses.map(c => [c.id, c]));
     const teacherMap = new Map(teachers.map(t => [t.id, t]));
