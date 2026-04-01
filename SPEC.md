@@ -759,6 +759,29 @@ interface ReviewRecord {
       重新提交
 ```
 
+**实际实现的 API（2026-03-31）**：
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/teaching-plans` | 创建授课计划 |
+| POST | `/api/v1/teaching-plans/:id/submit` | 提交授课计划 |
+| POST | `/api/v1/teaching-plans/:id/approve` | 审批授课计划 |
+| POST | `/api/v1/teaching-plans/excel/import` | **Excel 批量导入授课计划** |
+| POST | `/api/v1/teaching-plans/lesson-plans` | 创建教案 |
+| GET | `/api/v1/teaching-plans/lesson-plans/:teachingPlanId` | 获取教案列表 |
+| POST | `/api/v1/teaching-plans/lesson-plans/:id/submit` | 提交教案 |
+| POST | `/api/v1/teaching-plans/lesson-plans/:id/teacher-approve` | **多教师协作审批** |
+| POST | `/api/v1/teaching-plans/lesson-plans/:id/director-approve` | 主任最终审批 |
+
+**状态机（实际实现）**：
+
+| 实体 | 状态流转 |
+|------|----------|
+| 授课计划 | `DRAFT` → `PENDING_TEACHER` → `PENDING_GROUP_LEADER` → `APPROVED/REJECTED` |
+| 教案 | `DRAFT` → `PENDING_TEACHER` → `PENDING_GROUP_LEADER` → `PENDING_DIRECTOR` → `APPROVED/REJECTED` |
+
+**Excel 导入字段**：`course_name`, `class_name`, `teacher_name`, `week_number`, `content`, `teaching_type`, `period_type`
+
 ---
 
 #### 2.2.5 成绩管理
@@ -1123,6 +1146,26 @@ interface TeachingHoursCoefficient {
   updatedAt: Date;
 }
 ```
+
+**实际实现的 API（2026-03-31）**：
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/teaching-hours/coefficients` | 获取所有课时系数配置 |
+| POST | `/api/v1/teaching-hours/coefficients` | 创建课时系数配置 |
+| PUT | `/api/v1/teaching-hours/coefficients/:id` | 更新课时系数 |
+| GET | `/api/v1/teaching-hours/records` | 获取课时记录列表 |
+| GET | `/api/v1/teaching-hours/records/:teacherId` | 获取指定教师的课时记录 |
+| POST | `/api/v1/teaching-hours/calculate` | 计算教师总课时 |
+| GET | `/api/v1/teaching-hours/summary/:teacherId` | 获取教师课时汇总（按课程） |
+| POST | `/api/v1/teaching-hours/suspensions` | 记录停课时段 |
+| GET | `/api/v1/teaching-hours/suspensions/:semesterId` | 获取学期停课记录 |
+
+**课时计算逻辑（实际实现）**：
+- **重复课时系数**：人数最多班级 = 1.0，其他按配置（如 0.9、0.85）
+- **班级人数系数**：≤20人=0.8，21-30=0.95，31-40=1.05，41-50=1.15，>50=1.25
+- **最终课时** = 基础课时 × 班级人数系数 × 重复课时系数
+- **停课扣减**：停课期间课时单独记录，从总课时中扣减
 
 **课表版本管理**：
 
@@ -1589,6 +1632,20 @@ function getLeaveApprovalWorkflow(
   ];
 }
 ```
+
+**实际实现的 API（2026-03-31）**：
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/leaves` | 创建请假申请 |
+| GET | `/api/v1/leaves` | 获取请假列表（按角色过滤） |
+| GET | `/api/v1/leaves/:id` | 获取请假详情 |
+| POST | `/api/v1/leaves/:id/submit` | 提交请假申请 |
+| POST | `/api/v1/leaves/:id/class-teacher-approve` | 班主任审批 |
+| POST | `/api/v1/leaves/:id/director-approve` | 主任最终审批 |
+| POST | `/api/v1/leaves/:id/reject` | 驳回请假（任意审批节点） |
+
+**请假类型**：`personal`（事假）、`sick`（病假）、`official`（公假）
 
 **班级**：
 
