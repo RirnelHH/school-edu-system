@@ -3,7 +3,9 @@
 
 set -e
 
-PROJECT_DIR="/home/claude/workspace/school-edu-system"
+# 获取脚本所在目录（支持软链接）
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
 BACKEND_DIR="$PROJECT_DIR/backend"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
 LOG_DIR="$PROJECT_DIR/logs"

@@ -1,6 +1,9 @@
 #!/bin/bash
 # 停止前后端服务
 
+# 获取脚本所在目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 echo "🛑 停止教务管理系统..."
 
 # 停止前端
