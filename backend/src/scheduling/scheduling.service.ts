@@ -236,51 +236,78 @@ export class SchedulingService {
       where: whereClause,
     });
 
+    // 补充关联信息
+    const courseIds = [...new Set(existingEntries.map(e => e.courseId))];
+    const teacherIds = [...new Set(existingEntries.map(e => e.teacherId))];
+    const classIds = [...new Set(existingEntries.map(e => e.classId))];
+    const roomIds = [...new Set(existingEntries.filter(e => e.roomId).map(e => e.roomId!))];
+
+    const [courses, teachers, classes, rooms] = await Promise.all([
+      courseIds.length ? this.prisma.course.findMany({ where: { id: { in: courseIds } } }) : [],
+      teacherIds.length ? this.prisma.teacher.findMany({ where: { id: { in: teacherIds } }, include: { user: true } }) : [],
+      classIds.length ? this.prisma.class.findMany({ where: { id: { in: classIds } } }) : [],
+      roomIds.length ? this.prisma.room.findMany({ where: { id: { in: roomIds } } }) : [],
+    ]);
+
+    const courseMap = new Map(courses.map(c => [c.id, c]));
+    const teacherMap = new Map(teachers.map(t => [t.id, t]));
+    const classMap = new Map(classes.map(c => [c.id, c]));
+    const roomMap = new Map(rooms.map(r => [r.id, r]));
+
     for (const entry of existingEntries) {
+      const entryCourse = courseMap.get(entry.courseId);
+      const entryTeacher = teacherMap.get(entry.teacherId);
+      const entryClass = classMap.get(entry.classId);
+      const entryRoom = entry.roomId ? roomMap.get(entry.roomId) : null;
+
       // 教室冲突
       if (roomId && entry.roomId === roomId) {
         conflicts.push({
           type: 'ROOM_CONFLICT',
           roomId,
-          courseName: '待查',
+          courseName: entryCourse?.name || '未知课程',
           weekday,
           periodStart,
           periodEnd,
           conflictWith: {
-            courseName: '已排课程',
+            courseName: entryCourse?.name || '未知课程',
             roomId: entry.roomId,
+            roomName: entryRoom?.name,
           },
         });
       }
 
-      // 教师冲突
+      // 教师冲突：同一时段同一教师只能在一个班级教一门课
       if (entry.teacherId === teacherId) {
         conflicts.push({
           type: 'TEACHER_CONFLICT',
           teacherId,
-          courseName: '待查',
+          courseName: entryCourse?.name || '未知课程',
           weekday,
           periodStart,
           periodEnd,
           conflictWith: {
-            courseName: '已排课程',
+            courseName: entryCourse?.name || '未知课程',
             teacherId: entry.teacherId,
+            teacherName: entryTeacher?.user?.name,
+            className: entryClass?.name,
           },
         });
       }
 
-      // 班级冲突
+      // 班级冲突：同一时段同一班级只能上一门课
       if (entry.classId === classId) {
         conflicts.push({
           type: 'CLASS_CONFLICT',
           classId,
-          courseName: '待查',
+          courseName: entryCourse?.name || '未知课程',
           weekday,
           periodStart,
           periodEnd,
           conflictWith: {
-            courseName: '已排课程',
+            courseName: entryCourse?.name || '未知课程',
             classId: entry.classId,
+            className: entryClass?.name,
           },
         });
       }
@@ -291,6 +318,14 @@ export class SchedulingService {
 
   // ============ 自动排课 ============
 
+  /**
+   * 自动排课
+   * 规则：
+   * 1. 课时必须两节一起排：1-2, 3-4, 5-6, 7-8
+   * 2. 同一时段一个教师只能在一个班级教一门课
+   * 3. 同一时段一个班级只能上一门课
+   * 4. 上机课必须分配机房
+   */
   async autoSchedule(data: AutoScheduleDto) {
     // 1. 创建或获取排课版本
     let version = await this.prisma.scheduleVersion.findFirst({
@@ -359,70 +394,148 @@ export class SchedulingService {
       where: { scheduleVersionId: version.id },
     });
 
+    // 7.1 补充已排课程的关联信息
+    const existingCourseIds = [...new Set(existingEntries.map(e => e.courseId))];
+    const existingTeacherIds = [...new Set(existingEntries.map(e => e.teacherId))];
+    const existingClassIds = [...new Set(existingEntries.map(e => e.classId))];
+    const existingRoomIds = [...new Set(existingEntries.filter(e => e.roomId).map(e => e.roomId!))];
+
+    const [existingCourses, existingTeachers, existingClasses, existingRooms] = await Promise.all([
+      existingCourseIds.length ? this.prisma.course.findMany({ where: { id: { in: existingCourseIds } } }) : [],
+      existingTeacherIds.length ? this.prisma.teacher.findMany({ where: { id: { in: existingTeacherIds } }, include: { user: true } }) : [],
+      existingClassIds.length ? this.prisma.class.findMany({ where: { id: { in: existingClassIds } } }) : [],
+      existingRoomIds.length ? this.prisma.room.findMany({ where: { id: { in: existingRoomIds } } }) : [],
+    ]);
+
+    const existingCourseMap = new Map(existingCourses.map(c => [c.id, c]));
+    const existingTeacherMap = new Map(existingTeachers.map(t => [t.id, t]));
+    const existingClassMap = new Map(existingClasses.map(c => [c.id, c]));
+    const existingRoomMap = new Map(existingRooms.map(r => [r.id, r]));
+
+    // 为已排课程补充名称
+    const existingEntriesWithNames = existingEntries.map(e => ({
+      ...e,
+      courseName: existingCourseMap.get(e.courseId)?.name,
+      teacherName: existingTeacherMap.get(e.teacherId)?.user?.name,
+      className: existingClassMap.get(e.classId)?.name,
+      roomName: e.roomId ? existingRoomMap.get(e.roomId)?.name : null,
+    }));
+
     // 8. 按模板自动排课
     const results: any[] = [];
     const conflicts: any[] = [];
+
+    // 有效节次对：(1,2), (3,4), (5,6), (7,8)
+    const PERIOD_PAIRS = [
+      { start: 1, end: 2 },
+      { start: 3, end: 4 },
+      { start: 5, end: 6 },
+      { start: 7, end: 8 },
+    ];
 
     for (const template of templates) {
       const teachingClasses = (template.teachingClasses as any[]) || [];
       const course = courseMap.get(template.courseId);
       const teacher = teacherMap.get(template.teacherId);
 
-      // 计算需要排课的节次
-      const totalPeriods = template.weekHours;
-      let placedPeriods = 0;
+      // 计算需要排课的节次对数（每周课时 / 2，因为两节一起排）
+      const totalPeriodPairs = Math.floor(template.weekHours / 2);
+      let placedPairs = 0;
 
       // 优先排课时间段
       const preferredSlots = (template.preferredSlots as any[]) || [];
       const forbiddenSlots = (template.forbiddenSlots as any[]) || [];
 
-      // 遍历每周的每一天
-      for (let day = 1; day <= 5 && placedPeriods < totalPeriods; day++) {
+      // 遍历每周的每一天 (1-5，周一到周五)
+      for (let day = 1; day <= 5 && placedPairs < totalPeriodPairs; day++) {
         // 检查是否在禁止时间段
         const isForbidden = forbiddenSlots.some(
           (s: any) => s.dayOfWeek === day,
         );
         if (isForbidden) continue;
 
-        // 检查该天已有排课
-        const dayEntries = existingEntries.filter(e => e.weekday === day);
-        const usedPeriods = new Set(
-          dayEntries.flatMap(e =>
-            Array.from({ length: e.periodEnd - e.periodStart + 1 }, (_, i) => e.periodStart + i)
-          )
+        // 检查该天已有排课的节次对
+        const dayEntries = existingEntriesWithNames.filter(e => e.weekday === day);
+        const usedPeriodPairs = new Set(
+          dayEntries.map(e => `${e.periodStart}-${e.periodEnd}`)
         );
 
-        // 找空闲节次
-        for (let period = 1; period <= 8 && placedPeriods < totalPeriods; period++) {
-          if (usedPeriods.has(period)) continue;
+        // 遍历每个节次对
+        for (const pair of PERIOD_PAIRS) {
+          if (placedPairs >= totalPeriodPairs) break;
 
-          // 检查教师偏好
-          const prefersThisSlot = preferredSlots.some(
-            (s: any) => s.dayOfWeek === day && s.periodStart <= period && s.periodEnd >= period
-          );
+          // 检查该节次对是否已被使用
+          const pairKey = `${pair.start}-${pair.end}`;
+          if (usedPeriodPairs.has(pairKey)) continue;
 
-          // 分配教室
+          // 检查该节次对的教室是否冲突
           let assignedRoom: any = null;
-          if (template.practiceHours > 0 && template.recommendedRoomType) {
+          const isLabCourse = template.practiceHours > 0 && template.recommendedRoomType;
+
+          if (isLabCourse) {
             // 上机课，找对应类型机房
             const suitableRooms = rooms.filter(
               r => r.type === template.recommendedRoomType
             );
-            // 找该时段空闲的
             for (const room of suitableRooms) {
               const roomBusy = dayEntries.some(
                 e => e.roomId === room.id &&
-                  period >= e.periodStart &&
-                  period <= e.periodEnd
+                  e.periodStart === pair.start &&
+                  e.periodEnd === pair.end
               );
               if (!roomBusy) {
                 assignedRoom = room;
                 break;
               }
             }
+            // 上机课必须有机房，否则跳过
+            if (!assignedRoom) continue;
           }
 
-          // 创建排课条目
+          // 检查该班级在该节次对是否有其他课程（班级冲突）
+          for (const tc of teachingClasses) {
+            const classBusy = dayEntries.some(
+              e => e.classId === tc.classId &&
+                e.periodStart === pair.start &&
+                e.periodEnd === pair.end
+            );
+            if (classBusy) {
+              conflicts.push({
+                templateId: template.id,
+                courseName: course?.name,
+                teacherName: teacher?.user?.name,
+                className: tc.className,
+                weekday: day,
+                periodPair: pairKey,
+                message: `班级 ${tc.className} 在周${day}第${pairKey}节已有课程`,
+                type: 'CLASS_CONFLICT',
+              });
+              continue; // 跳到下一个班级
+            }
+          }
+
+          // 检查该教师在该节次对是否已在其他班级上课（教师冲突）
+          const teacherBusyInOtherClass = dayEntries.some(
+            e => e.teacherId === template.teacherId &&
+              e.periodStart === pair.start &&
+              e.periodEnd === pair.end &&
+              // 确保不是教同一个班级的同一门课
+              !(teachingClasses.some((tc: any) => tc.classId === e.classId))
+          );
+          if (teacherBusyInOtherClass) {
+            conflicts.push({
+              templateId: template.id,
+              courseName: course?.name,
+              teacherName: teacher?.user?.name,
+              weekday: day,
+              periodPair: pairKey,
+              message: `教师 ${teacher?.user?.name} 在周${day}第${pairKey}节已在其他班级上课`,
+              type: 'TEACHER_CONFLICT',
+            });
+            continue; // 跳到下一个节次对
+          }
+
+          // 创建排课条目（为每个班级创建一条）
           for (const tc of teachingClasses) {
             const entry = await this.prisma.scheduleEntry.create({
               data: {
@@ -430,37 +543,46 @@ export class SchedulingService {
                 classId: tc.classId,
                 courseId: template.courseId,
                 teacherId: template.teacherId,
-                roomId: assignedRoom?.id,
+                roomId: assignedRoom?.id || null,
                 weekday: day,
-                periodStart: period,
-                periodEnd: period,
+                periodStart: pair.start,
+                periodEnd: pair.end,
                 lessonType: assignedRoom ? 'LAB' : 'THEORY',
               },
             });
 
-            existingEntries.push(entry); // 更新已排记录
+            // 更新本地缓存
+            existingEntries.push(entry);
+            existingEntriesWithNames.push({
+              ...entry,
+              courseName: course?.name,
+              teacherName: teacher?.user?.name,
+              className: tc.className,
+              roomName: assignedRoom?.name || null,
+            });
+
             results.push({
               ...entry,
               courseName: course?.name,
               className: tc.className,
               teacherName: teacher?.user?.name,
-              roomName: assignedRoom?.name,
+              roomName: assignedRoom?.name || null,
             });
-
-            placedPeriods++;
-            usedPeriods.add(period);
           }
+
+          placedPairs++;
         }
       }
 
-      if (placedPeriods < template.weekHours) {
+      // 检查是否排完
+      if (placedPairs < totalPeriodPairs) {
         conflicts.push({
           templateId: template.id,
           courseName: course?.name,
           teacherName: teacher?.user?.name,
-          requestedHours: template.weekHours,
-          placedHours: placedPeriods,
-          message: `只能排 ${placedPeriods}/${template.weekHours} 节`,
+          requestedPeriods: totalPeriodPairs * 2,
+          placedPeriods: placedPairs * 2,
+          message: `只能排 ${placedPairs * 2}/${template.weekHours} 节（${placedPairs}/${totalPeriodPairs} 节次对）`,
         });
       }
     }

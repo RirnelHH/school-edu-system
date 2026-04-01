@@ -127,5 +127,8 @@ export interface ScheduleConflict {
     teacherId?: string;
     classId?: string;
     roomId?: string;
+    teacherName?: string;
+    className?: string;
+    roomName?: string;
   };
 }
